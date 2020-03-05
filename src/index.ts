@@ -1,7 +1,9 @@
 import { EffectManager, Dispatch, Result } from "@typescript-tea/core";
 import { exhaustiveCheck } from "ts-exhaustive-check";
 
-// -- VALUES
+// -- COMMANDS
+
+export type MyCmd<A> = GetValue<A> | SetValue<A> | RemoveValue<A> | Clear<A> | Keys<A>;
 
 export type Json = null | boolean | number | string | ReadonlyArray<Json> | { readonly [prop: string]: Json };
 
@@ -109,10 +111,6 @@ export function keys<A>(key: string, gotResult: (result: Result<Error, ReadonlyA
   };
 }
 
-// -- COMMANDS and SUBSCRIPTIONS
-
-export type MyCmd<A> = GetValue<A> | SetValue<A> | RemoveValue<A> | Clear<A> | Keys<A>;
-
 export function mapCmd<A1, A2>(func: (a1: A1) => A2, cmd: MyCmd<A1>): MyCmd<A2> {
   switch (cmd.type) {
     case "Get":
@@ -128,15 +126,40 @@ export function mapCmd<A1, A2>(func: (a1: A1) => A2, cmd: MyCmd<A1>): MyCmd<A2> 
   }
 }
 
-export type MySub<A> = {
-  readonly home: typeof home;
-  readonly type: "MySub";
-  readonly tracker: string;
-  readonly toMsg: (p: string) => A;
+// -- SUBSCRIPTIONS
+
+export type MySub<A> = Changes<A>;
+
+//-- See https://developer.mozilla.org/en-US/docs/Web/API/StorageEvent
+export type ChangeEvent = {
+  readonly key: string;
+  readonly oldValue: string;
+  readonly newValue: string;
+  readonly url: string;
 };
 
+export type Changes<A> = {
+  readonly home: typeof home;
+  readonly type: "Changes";
+  readonly onEvent: (e: ChangeEvent) => A;
+};
+
+/**
+ * Subscribe to any changes in localstorage. These events occur only when
+ * localstorage is changed in a different window than the one of the current
+ * program. Only the `set` task results in an event; `remove` operations happen
+ * without notice (unfortunately).
+ */
+export function changes<A>(onEvent: (e: ChangeEvent) => A): Changes<A> {
+  return {
+    home,
+    type: "Changes",
+    onEvent,
+  };
+}
+
 export function mapSub<A1, A2>(func: (a1: A1) => A2, sub: MySub<A1>): MySub<A2> {
-  return { ...sub, toMsg: (p: string) => func(sub.toMsg(p)) };
+  return { ...sub, onEvent: (e) => func(sub.onEvent(e)) };
 }
 
 // -- EFFECT MANAGER
@@ -156,13 +179,7 @@ export const createEffectManager = <ProgramAction>(): EffectManager<
   State<ProgramAction>,
   MyCmd<ProgramAction>,
   MySub<ProgramAction>
-> => ({
-  home,
-  mapCmd: (_, c) => c,
-  mapSub: (_, s) => s,
-  onEffects,
-  onSelfAction,
-});
+> => ({ home, mapCmd, mapSub, onEffects, onSelfAction });
 
 // -- APP MESSAGES
 
