@@ -1,0 +1,79 @@
+{
+  "name": "@typescript-tea/local-storage",
+  "version": "0.1.0",
+  "description": "Effect manager for local storage",
+  "main": "dist/local-storage.js",
+  "module": "dist/local-storage.m.js",
+  "types": "dist/index.d.ts",
+  "author": "Jonas Kello <jonas.kello@gmail.com>",
+  "license": "MIT",
+  "repository": "github:typescript-tea/core",
+  "homepage": "https://typescript-tea.github.io/local-storage",
+  "publishConfig": {
+    "access": "public"
+  },
+  "keywords": [
+    "local-storage",
+    "effect manager",
+    "TEA"
+  ],
+  "files": [
+    "/src",
+    "/dist",
+    "package.json",
+    "CHANGELOG.md",
+    "LICENSE",
+    "README.md"
+  ],
+  "devDependencies": {
+    "@types/jest": "^24.9.1",
+    "@typescript-eslint/eslint-plugin": "^2.17.0",
+    "@typescript-eslint/parser": "^2.17.0",
+    "confusing-browser-globals": "^1.0.9",
+    "eslint": "^6.8.0",
+    "eslint-config-divid": "^0.4.2",
+    "eslint-plugin-functional": "^3.0.1",
+    "eslint-plugin-import": "^2.20.0",
+    "husky": "^4.2.1",
+    "jest": "^25.1.0",
+    "lint-staged": "^10.0.2",
+    "microbundle": "^0.12.0-next.8",
+    "prettier": "^1.19.1",
+    "rimraf": "^3.0.0",
+    "ts-jest": "^25.0.0",
+    "typescript": "^3.7.5"
+  },
+  "scripts": {
+    "build": "tsc -b",
+    "clean": "tsc -b --clean && rimraf lib && rimraf dist",
+    "test": "jest",
+    "test-coverage": "jest --coverage",
+    "lint": "eslint './src/**/*.ts{,x}' --ext .js,.ts,.tsx -f visualstudio",
+    "dist": "yarn build && rimraf dist && microbundle src/index.ts",
+    "verify": "yarn lint && yarn test-coverage && yarn dist",
+    "report-coverage": "codecov -f coverage/lcov.info",
+    "preversion": "yarn verify && yarn docs",
+    "postversion": "git push --tags && yarn publish --new-version $npm_package_version && git push --follow-tags && echo \"Successfully released version $npm_package_version!\""
+  },
+  "lint-staged": {
+    "*.{ts,tsx}": "eslint --ext .ts -f visualstudio",
+    "*.{ts,tsx,json,css}": [
+      "prettier --write",
+      "git add"
+    ]
+  },
+  "husky": {
+    "hooks": {
+      "pre-commit": "lint-staged"
+    }
+  },
+  "prettier": {
+    "printWidth": 120,
+    "trailingComma": "es5",
+    "arrowParens": "always"
+  },
+  "dependencies": {
+    "@typescript-tea/core": "^0.3.0",
+    "ts-exhaustive-check": "^1.0.0"
+  }
+}
