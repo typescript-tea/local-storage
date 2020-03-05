@@ -7,8 +7,6 @@ import { exhaustiveCheck } from "ts-exhaustive-check";
 
 export type MyCmd<A> = GetValue<A> | SetValue<A> | RemoveValue<A> | Clear<A> | Keys<A>;
 
-export type Json = null | boolean | number | string | ReadonlyArray<Json> | { readonly [prop: string]: Json };
-
 export type Error =
   | { readonly type: "NoStorage" }
   | { readonly type: "UnexpectedPayload"; readonly payload: string }
@@ -18,13 +16,13 @@ export type GetValue<A> = {
   readonly home: typeof home;
   readonly type: "Get";
   readonly key: string;
-  readonly gotResult: (result: Result<Error, Json | undefined>) => A;
+  readonly gotResult: (result: Result<Error, string | undefined>) => A;
 };
 
 /**
  * Get a value from local storage
  */
-export function get<A>(key: string, gotResult: (result: Result<Error, Json | undefined>) => A): GetValue<A> {
+export function get<A>(key: string, gotResult: (result: Result<Error, string | undefined>) => A): GetValue<A> {
   return {
     home,
     type: "Get",
@@ -37,7 +35,7 @@ export type SetValue<A> = {
   readonly home: typeof home;
   readonly type: "Set";
   readonly key: string;
-  readonly value: Json;
+  readonly value: string;
   readonly completed: (error: Error | undefined) => A;
 };
 
@@ -45,7 +43,7 @@ export type SetValue<A> = {
  * Sets the string value for a given key. Will fail with NoStorage if
  * localStorage is not available in the browser.
  */
-export function set<A>(key: string, value: Json, completed: (error: Error | undefined) => A): SetValue<A> {
+export function set<A>(key: string, value: string, completed: (error: Error | undefined) => A): SetValue<A> {
   return {
     home,
     type: "Set",
@@ -116,7 +114,7 @@ export function keys<A>(key: string, gotResult: (result: Result<Error, ReadonlyA
 export function mapCmd<A1, A2>(func: (a1: A1) => A2, cmd: MyCmd<A1>): MyCmd<A2> {
   switch (cmd.type) {
     case "Get":
-      return { ...cmd, gotResult: (r: Result<Error, Json | undefined>) => func(cmd.gotResult(r)) };
+      return { ...cmd, gotResult: (r: Result<Error, string | undefined>) => func(cmd.gotResult(r)) };
     case "Keys":
       return { ...cmd, gotResult: (r: Result<Error, ReadonlyArray<string>>) => func(cmd.gotResult(r)) };
     case "Set":
