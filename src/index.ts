@@ -38,20 +38,20 @@ export type SetValue<A> = {
   readonly type: "Set";
   readonly key: string;
   readonly value: Json;
-  readonly gotError: (error: Error | undefined) => A;
+  readonly completed: (error: Error | undefined) => A;
 };
 
 /**
  * Sets the string value for a given key. Will fail with NoStorage if
  * localStorage is not available in the browser.
  */
-export function set<A>(key: string, value: Json, gotError: (error: Error | undefined) => A): SetValue<A> {
+export function set<A>(key: string, value: Json, completed: (error: Error | undefined) => A): SetValue<A> {
   return {
     home,
     type: "Set",
     key,
     value,
-    gotError,
+    completed,
   };
 }
 
@@ -59,19 +59,19 @@ export type RemoveValue<A> = {
   readonly home: typeof home;
   readonly type: "Remove";
   readonly key: string;
-  readonly gotError: (error: Error | undefined) => A;
+  readonly completed: (error: Error | undefined) => A;
 };
 
 /**
  * Removes the value for a given key. Task will fail with NoStorage if
  * localStorage is not available in the browser.
  */
-export function remove<A>(key: string, gotError: (error: Error | undefined) => A): RemoveValue<A> {
+export function remove<A>(key: string, completed: (error: Error | undefined) => A): RemoveValue<A> {
   return {
     home,
     type: "Remove",
     key,
-    gotError,
+    completed,
   };
 }
 
@@ -79,18 +79,18 @@ export type Clear<A> = {
   readonly home: typeof home;
   readonly type: "Clear";
   readonly key: string;
-  readonly gotError: (error: Error | undefined) => A;
+  readonly completed: (error: Error | undefined) => A;
 };
 
 /**
  * Removes all keys and values from localstorage.
  */
-export function clear<A>(key: string, gotError: (error: Error | undefined) => A): Clear<A> {
+export function clear<A>(key: string, completed: (error: Error | undefined) => A): Clear<A> {
   return {
     home,
     type: "Clear",
     key,
-    gotError,
+    completed,
   };
 }
 
@@ -122,7 +122,7 @@ export function mapCmd<A1, A2>(func: (a1: A1) => A2, cmd: MyCmd<A1>): MyCmd<A2> 
     case "Set":
     case "Remove":
     case "Clear":
-      return { ...cmd, gotError: (e) => func(cmd.gotError(e)) };
+      return { ...cmd, completed: (e) => func(cmd.completed(e)) };
     default:
       return exhaustiveCheck(cmd, true);
   }
@@ -189,13 +189,16 @@ export const createEffectManager = <ProgramAction>(): EffectManager<
 // -- PROGRAM ACTIONS
 
 function onEffects<ProgramAction>(
-  _dispatchApp: Dispatch<ProgramAction>,
+  dispatchProgram: Dispatch<ProgramAction>,
   dispatchSelf: Dispatch<SelfAction>,
-  _cmds: ReadonlyArray<MyCmd<ProgramAction>>,
+  cmds: ReadonlyArray<MyCmd<ProgramAction>>,
   subs: ReadonlyArray<MySub<ProgramAction>>,
   state: State<ProgramAction> = init()
 ): State<ProgramAction> {
-  // Handle subs
+  // Handle cmds
+  handleCmds(dispatchProgram, cmds);
+
+  // Handle subs and return new state
   if (state !== undefined) {
     if (subs.length === 0) {
       // Was listening but now there are no subs => Stop listening
@@ -218,6 +221,42 @@ function onEffects<ProgramAction>(
   }
 }
 
+function handleCmds<ProgramAction>(
+  dispatchProgram: Dispatch<ProgramAction>,
+  cmds: ReadonlyArray<MyCmd<ProgramAction>>
+): void {
+  for (const cmd of cmds) {
+    switch (cmd.type) {
+      case "Get":
+        if (!isStorageAvailable()) {
+          dispatchProgram(cmd.gotResult(Result.Err({ type: "NoStorage" })));
+        } else {
+          const value = localStorage.getItem(cmd.key);
+          dispatchProgram(cmd.gotResult(Result.Ok(value ?? undefined)));
+        }
+        break;
+      case "Clear":
+      case "Keys":
+      case "Remove":
+        break;
+      case "Set":
+        if (!isStorageAvailable()) {
+          dispatchProgram(cmd.completed({ type: "NoStorage" }));
+        } else {
+          try {
+            localStorage.setItem(cmd.key, cmd.value);
+            dispatchProgram(cmd.completed(undefined));
+          } catch (e) {
+            dispatchProgram(cmd.completed({ type: "Overflow" }));
+          }
+        }
+        break;
+      default:
+        exhaustiveCheck(cmd, true);
+    }
+  }
+}
+
 // -- SELF ACTIONS
 
 type SelfAction = { readonly type: "ChangeEvent"; readonly event: ChangeEvent };
@@ -234,4 +273,13 @@ function onSelfAction<AppAction>(
     }
   }
   return state;
+}
+
+function isStorageAvailable(): boolean {
+  if (typeof window === "undefined") {
+    return false;
+  } else if (typeof window.localStorage === "undefined") {
+    return false;
+  }
+  return true;
 }
