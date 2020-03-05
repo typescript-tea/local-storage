@@ -160,8 +160,7 @@ export const createEffectManager = <ProgramAction>(): EffectManager<
   home,
   mapCmd: (_, c) => c,
   mapSub: (_, s) => s,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  onEffects: onEffects as any,
+  onEffects,
   onSelfAction,
 });
 
