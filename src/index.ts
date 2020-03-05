@@ -1,6 +1,8 @@
 import { EffectManager, Dispatch, Result } from "@typescript-tea/core";
 import { exhaustiveCheck } from "ts-exhaustive-check";
 
+// -- See https://github.com/frontend-fp/elm-localstorage/blob/master/src/LocalStorage.elm
+
 // -- COMMANDS
 
 export type MyCmd<A> = GetValue<A> | SetValue<A> | RemoveValue<A> | Clear<A> | Keys<A>;
@@ -132,10 +134,10 @@ export type MySub<A> = Changes<A>;
 
 //-- See https://developer.mozilla.org/en-US/docs/Web/API/StorageEvent
 export type ChangeEvent = {
-  readonly key: string;
-  readonly oldValue: string;
-  readonly newValue: string;
-  readonly url: string;
+  readonly key: string | null;
+  readonly oldValue: string | null;
+  readonly newValue: string | null;
+  readonly url: string | null;
 };
 
 export type Changes<A> = {
@@ -166,11 +168,14 @@ export function mapSub<A1, A2>(func: (a1: A1) => A2, sub: MySub<A1>): MySub<A2> 
 
 const home = "local-storage";
 
-type State<A> = {
-  readonly subs: ReadonlyArray<MySub<A>>;
-};
+type State<A> =
+  | {
+      readonly subs: ReadonlyArray<MySub<A>>;
+      readonly listener: (e: StorageEvent) => void | undefined;
+    }
+  | undefined;
 
-const init = <A>(): State<A> => ({ subs: [] });
+const init = <A>(): State<A> => undefined;
 
 export const createEffectManager = <ProgramAction>(): EffectManager<
   typeof home,
@@ -181,32 +186,106 @@ export const createEffectManager = <ProgramAction>(): EffectManager<
   MySub<ProgramAction>
 > => ({ home, mapCmd, mapSub, onEffects, onSelfAction });
 
-// -- APP MESSAGES
+// -- PROGRAM ACTIONS
 
-function onEffects<AppAction>(
-  _dispatchApp: Dispatch<AppAction>,
-  _dispatchSelf: Dispatch<SelfAction>,
-  _cmds: ReadonlyArray<MyCmd<AppAction>>,
-  subs: ReadonlyArray<MySub<AppAction>>,
-  _state: State<AppAction> = init()
-): State<AppAction> {
-  return { subs };
-}
-
-// -- SELF MESSAGES
-
-type SelfAction = { readonly type: "Progress"; readonly tracker: string };
-
-function onSelfAction<AppAction>(
-  _dispatchApp: Dispatch<AppAction>,
-  _dispatchSelf: Dispatch<SelfAction>,
-  _action: SelfAction,
-  state: State<AppAction> = init()
-): State<AppAction> {
-  //   for (const sub of state.subs) {
-  //     if (sub.tracker === action.tracker) {
-  //       dispatchApp(sub.toMsg(action.progress));
-  //     }
-  //   }
+function onEffects<ProgramAction>(
+  _dispatchApp: Dispatch<ProgramAction>,
+  dispatchSelf: Dispatch<SelfAction>,
+  _cmds: ReadonlyArray<MyCmd<ProgramAction>>,
+  subs: ReadonlyArray<MySub<ProgramAction>>,
+  state: State<ProgramAction> = init()
+): State<ProgramAction> {
+  // Handle subs
+  if (state === undefined && subs.length === 0) {
+    // Was not listening and should not be listening, do nothing
+    return state;
+  } else if (state !== undefined && subs.length === 0) {
+    // Stop listening
+    window.removeEventListener("storage", state.listener);
+    return undefined;
+  } else if (state === undefined && subs.length > 0) {
+    // Start listening
+    const listener = (e: StorageEvent): void => dispatchSelf({ type: "ChangeEvent", event: e });
+    window.addEventListener("storage", listener);
+    return { subs, listener };
+  } else if (state !== undefined && subs.length > 0) {
+    // Keep listening
+    return { subs, listener: state.listener };
+  }
   return state;
 }
+
+/*
+
+onEffects : Platform.Router msg Event -> List (MyCmd msg) -> List (MySub msg) -> State msg -> Task Never (State msg)
+onEffects router newCmds newSubs oldState =
+    let 
+        subTask = 
+            case ( oldState, newSubs ) of
+                ( Nothing, [] ) ->
+                    Task.succeed Nothing
+
+                ( Just { pid }, [] ) ->
+                    Process.kill pid
+                        &> Task.succeed Nothing
+
+                ( Nothing, subs ) ->
+                    Process.spawn (Dom.onWindow "storage" event (Platform.sendToSelf router))
+                        |> Task.andThen
+                            (\pid ->
+                                Task.succeed (Just { subs = newSubs, pid = pid })
+                            )
+
+                ( Just { pid }, subs ) ->
+                    Task.succeed (Just { subs = newSubs, pid = pid })
+        cmdTask = 
+            manageCmds oldState newCmds
+    in  
+        Task.sequence [subTask, cmdTask]
+            |> Task.map (\states -> 
+                case List.head states of
+                    Nothing -> Nothing 
+                    Just thing -> thing
+            )
+
+
+*/
+
+// -- SELF ACTIONS
+
+type SelfAction = { readonly type: "ChangeEvent"; readonly event: ChangeEvent };
+
+function onSelfAction<AppAction>(
+  _dispatchProgram: Dispatch<AppAction>,
+  _dispatchSelf: Dispatch<SelfAction>,
+  action: SelfAction,
+  state: State<AppAction> = init()
+): State<AppAction> {
+  if (state === undefined) {
+    return state;
+  } else if (state.subs) {
+    for (const sub of state.subs) {
+      _dispatchProgram(sub.onEvent(action.event));
+    }
+  }
+  return state;
+}
+
+/*
+
+
+onSelfMsg : Platform.Router msg Event -> Event -> State msg -> Task Never (State msg)
+onSelfMsg router dimensions state =
+    case state of
+        Nothing ->
+            Task.succeed state
+
+        Just { subs } ->
+            let
+                send (MySub tagger) =
+                    Platform.sendToApp router (tagger dimensions)
+            in
+                Task.sequence (List.map send subs)
+                    &> Task.succeed state
+
+*/
