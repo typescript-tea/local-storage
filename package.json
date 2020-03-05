@@ -7,7 +7,7 @@
   "types": "dist/index.d.ts",
   "author": "Jonas Kello <jonas.kello@gmail.com>",
   "license": "MIT",
-  "repository": "github:typescript-tea/core",
+  "repository": "github:typescript-tea/local-storage",
   "homepage": "https://typescript-tea.github.io/local-storage",
   "publishConfig": {
     "access": "public"
