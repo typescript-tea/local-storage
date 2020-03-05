@@ -196,96 +196,42 @@ function onEffects<ProgramAction>(
   state: State<ProgramAction> = init()
 ): State<ProgramAction> {
   // Handle subs
-  if (state === undefined && subs.length === 0) {
-    // Was not listening and should not be listening, do nothing
-    return state;
-  } else if (state !== undefined && subs.length === 0) {
-    // Stop listening
-    window.removeEventListener("storage", state.listener);
-    return undefined;
-  } else if (state === undefined && subs.length > 0) {
-    // Start listening
+  if (state !== undefined) {
+    if (subs.length === 0) {
+      // Was listening but now there are no subs => Stop listening
+      window.removeEventListener("storage", state.listener);
+      return undefined;
+    }
+    // Was listening and there are still subs => Keep listening
+    return { subs, listener: state.listener };
+  } else if (state === undefined) {
+    if (subs.length === 0) {
+      // Was not listening and now there are no subs => Do nothing
+      return state;
+    }
+    // // Was not listening and now there are subs => Start listening
     const listener = (e: StorageEvent): void => dispatchSelf({ type: "ChangeEvent", event: e });
     window.addEventListener("storage", listener);
     return { subs, listener };
-  } else if (state !== undefined && subs.length > 0) {
-    // Keep listening
-    return { subs, listener: state.listener };
+  } else {
+    return exhaustiveCheck(state, true);
   }
-  return state;
 }
-
-/*
-
-onEffects : Platform.Router msg Event -> List (MyCmd msg) -> List (MySub msg) -> State msg -> Task Never (State msg)
-onEffects router newCmds newSubs oldState =
-    let 
-        subTask = 
-            case ( oldState, newSubs ) of
-                ( Nothing, [] ) ->
-                    Task.succeed Nothing
-
-                ( Just { pid }, [] ) ->
-                    Process.kill pid
-                        &> Task.succeed Nothing
-
-                ( Nothing, subs ) ->
-                    Process.spawn (Dom.onWindow "storage" event (Platform.sendToSelf router))
-                        |> Task.andThen
-                            (\pid ->
-                                Task.succeed (Just { subs = newSubs, pid = pid })
-                            )
-
-                ( Just { pid }, subs ) ->
-                    Task.succeed (Just { subs = newSubs, pid = pid })
-        cmdTask = 
-            manageCmds oldState newCmds
-    in  
-        Task.sequence [subTask, cmdTask]
-            |> Task.map (\states -> 
-                case List.head states of
-                    Nothing -> Nothing 
-                    Just thing -> thing
-            )
-
-
-*/
 
 // -- SELF ACTIONS
 
 type SelfAction = { readonly type: "ChangeEvent"; readonly event: ChangeEvent };
 
 function onSelfAction<AppAction>(
-  _dispatchProgram: Dispatch<AppAction>,
+  dispatchProgram: Dispatch<AppAction>,
   _dispatchSelf: Dispatch<SelfAction>,
   action: SelfAction,
   state: State<AppAction> = init()
 ): State<AppAction> {
-  if (state === undefined) {
-    return state;
-  } else if (state.subs) {
+  if (state !== undefined) {
     for (const sub of state.subs) {
-      _dispatchProgram(sub.onEvent(action.event));
+      dispatchProgram(sub.onEvent(action.event));
     }
   }
   return state;
 }
-
-/*
-
-
-onSelfMsg : Platform.Router msg Event -> Event -> State msg -> Task Never (State msg)
-onSelfMsg router dimensions state =
-    case state of
-        Nothing ->
-            Task.succeed state
-
-        Just { subs } ->
-            let
-                send (MySub tagger) =
-                    Platform.sendToApp router (tagger dimensions)
-            in
-                Task.sequence (List.map send subs)
-                    &> Task.succeed state
-
-*/
