@@ -243,7 +243,6 @@ function handleCmds<ProgramAction>(
           dispatchProgram(cmd.completed({ type: "NoStorage" }));
         } else {
           try {
-            console.log("setting item!");
             localStorage.setItem(cmd.key, cmd.value);
             dispatchProgram(cmd.completed(undefined));
           } catch (e) {

@@ -1,4 +1,5 @@
-// import { JSDOM } from "jsdom";
+/* eslint-disable @typescript-eslint/explicit-function-return-type */
+import { Result } from "@typescript-tea/core";
 import * as LocalStorage from "../index";
 
 // beforeAll(() => {
@@ -34,6 +35,19 @@ test("set command", () => {
   em.onEffects(dispatchProgram, doNothing, [cmd], [], undefined);
   expect(dispatchProgram).toBeCalledWith(undefined);
   expect(setItemSpy).toBeCalledWith("olle", "kalle");
+});
+
+test("get command", () => {
+  const em = LocalStorage.createEffectManager();
+  const doNothing = (): void => {
+    // Do nothing
+  };
+  const gotResult = (result: Result<LocalStorage.Error, string | undefined>) => ({ type: "myaction", result });
+  const dispatchProgram = jest.fn();
+  const cmd = LocalStorage.get("olle2", gotResult);
+  Storage.prototype.getItem = jest.fn(() => "kalle2");
+  em.onEffects(dispatchProgram, doNothing, [cmd], [], undefined);
+  expect(dispatchProgram).toBeCalledWith({ type: "myaction", result: { type: "Ok", value: "kalle2" } });
 });
 
 // test("update message", () => {
